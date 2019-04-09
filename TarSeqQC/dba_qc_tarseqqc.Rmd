@@ -9,7 +9,7 @@ Try executing this chunk by clicking the *Run* button within the chunk or by pla
 
 Set work path, propigate through all chunk
 ```{r setup}
-knitr::opts_knit$set(root.dir = normalizePath("/Users/graham/bioinf/dba/amplicon_qc/lanes_7_15/"))
+knitr::opts_knit$set(root.dir = normalizePath("/Users/graham/bioinf/dba/amplicon_qc/lanes_17_20//"))
 #setwd(dir = "/Users/graham/bioinf/dba/amplicon_qc/lanes_7_15")
 ```
 # Single library analysis
@@ -19,7 +19,7 @@ library("BiocParallel")
 ```
 
 ```{r}
-# Run 7 bam example - TODO: use a median exmaple for indepth qc analysis
+# Run 7 bam example - TODO: use a median example for in depth qc analysis
 bamFile1 <- list.files(path="dataset/R_2013_12_04_17_52_40_user_SN1-71-DBAv6_L07/", pattern="IonXpress_001.*.bam$", full.names = TRUE)
 ```
 Check file
@@ -62,8 +62,7 @@ staging
 plot(myPanel1)
 
 ```
-# Pooled run library runs 7-16
-
+# Pooled run library's 7-16
 ```{r}
 # bedFile
 bedFile = "dataset/DBAv6.formatted.bed"
@@ -76,6 +75,9 @@ checkBedFasta(bedFile = bedFile, fastaFile = fastaFile)
 
 # iterate all run folders
 dirs <- list.dirs(path="dataset", recursive = FALSE)
+
+
+
 for (dir in dirs) {
   print(dir)
   bamFiles <- list.files(path=dir, pattern="*.bam$", full.names = TRUE)
@@ -106,14 +108,14 @@ for (dir in dirs) {
     print(summary(DBAv6_panel))
     
     # table and plot on/off target hits, output table to file
-    write.csv(readFrequencies(myPanel1), file = paste(sample_name, "_readFrequencies.csv", sep = ""))
+    write.csv(readFrequencies(DBAv6_panel), file = paste(sample_name, "_readFrequencies.csv", sep = ""))
     plot_InOutFeatures <- plotInOutFeatures(readFrequencies(DBAv6_panel))
     
     # plot panel overview
     plot_panelOverview <- plot(DBAv6_panel, attributeThres=attributeThres, chrLabels =TRUE)
     
     # get feature counts, output table to file
-    write.csv(getFeaturePanel(myPanel1), file = paste(sample_name, "_getFeaturePanel.csv", sep = ""))
+    write.csv(getFeaturePanel(DBAv6_panel), file = paste(sample_name, "_getFeaturePanel.csv", sep = ""))
     
     # quality control report - output into analysis folder
     dir.create("R/TarSeqQC/output/")
@@ -121,6 +123,65 @@ for (dir in dirs) {
     buildReport(DBAv6_panel, attributeThres, file = qc_results_filename)
   }
 }
+```
+# Pooled run library's 17-20 * change global path before running
+```{r}
+# bedFile
+bedFile = "dataset/DBAv6.formatted.bed"
 
+# fasta file
+fastaFile = "../hg19.fa"
+
+# check formatting
+checkBedFasta(bedFile = bedFile, fastaFile = fastaFile)
+
+# iterate all run folders
+dirs <- list.dirs(path="dataset", recursive = FALSE)
+
+for (dir in dirs) {
+  print(dir)
+  bamFiles <- list.files(path=dir, pattern="*.bam$", full.names = TRUE)
+  BPPARAM<-bpparam()
+  
+  for (bamFile in bamFiles) {
+    # sample name and library number parsing - irregular run naming
+    sample_name = sub(".*Ion", "", basename(bamFile))
+    sample_name = paste("Ion", sample_name, sep='')
+    file_split = strsplit(bamFile, "DBAv6_")
+    lane_number = file_split[[c(1,length(file_split[[1]]))]]
+    lane_number = sub("_.*", "", lane_number)
+    lane_number = sub(".IonXpress", "", lane_number) # continued random run naming, catch here
+    sample_name = paste(lane_number, "_", sample_name, sep = "")
+    
+    print(sample_name)
+    
+    # creating a TargetExperiment object
+    DBAv6_panel <- TargetExperiment(bedFile, bamFile, fastaFile, feature="amplicon", attribute="coverage", BPPARAM=BPPARAM)
+    
+    setFeature(DBAv6_panel) <- "amplicon"
+    setAttribute(DBAv6_panel) <- "coverage"
+    
+    # definition of the interval extreme values
+    attributeThres<-c(0,1,30,100,Inf)
+    
+    # some basic stats
+    print(summary(DBAv6_panel))
+    
+    # table and plot on/off target hits, output table to file
+    write.csv(readFrequencies(DBAv6_panel), file = paste(sample_name, "_readFrequencies.csv", sep = ""))
+    plot_InOutFeatures <- plotInOutFeatures(readFrequencies(DBAv6_panel))
+    
+    # plot panel overview
+    plot_panelOverview <- plot(DBAv6_panel, attributeThres=attributeThres, chrLabels =TRUE)
+    
+    # get feature counts, output table to file
+    write.csv(getFeaturePanel(DBAv6_panel), file = paste(sample_name, "_getFeaturePanel.csv", sep = ""))
+    
+    # quality control report - output into analysis folder
+    dir.create("R/TarSeqQC/output/")
+    qc_results_filename = paste(sample_name, "_", "results.xlsx", sep = "")
+    buildReport(DBAv6_panel, attributeThres, file = qc_results_filename)
+  }
+}
 ```
 

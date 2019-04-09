@@ -1,0 +1,65 @@
+---
+title: "DBA QC panel R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+#Set work path, propigate through all chunk
+```{r setup}
+knitr::opts_knit$set(root.dir = normalizePath("/Users/graham/bioinf/dba/amplicon_qc/lanes_7_15/"))
+#setwd(dir = "/Users/graham/bioinf/dba/amplicon_qc/lanes_7_15")
+```
+# Queue up the files paths
+```{r}
+bam_files <- list.files(path="../../dataset/R_2013_12_04_17_52_40_user_SN1-71-DBAv6_L07/", pattern="*.bam", full.names = TRUE)
+
+```
+# Load essential files. BED and BAM.
+```{r}
+targets <- get.targets(targetsfile = "dataset/DBAv6.bed", chrcol = 1, startcol = 2, endcol = 3, zerobased = TRUE, header = TRUE, sep = '\t')
+
+reads <- get.reads("dataset/R_2013_12_04_17_52_40_user_SN1-71-DBAv6_L07/IonXpress_002.R_2013_12_04_17_52_40_user_SN1-71-DBAv6_L07.bam", filetype="bam")
+```
+# Specificity and Enrichment
+```{r}
+chrom.barplot(reads, targets)
+fr <- fraction.reads.target(reads, targets)
+
+```
+# Coverage html report
+```{r}
+TEQCreport(sampleName = "L7_IonXpress_002", targetsName = "DBAv6", referenceName = "hg19", destDir = "R/report2/", reads = reads, targets = targets, genome = "hg19")
+```
+# Cycle L7 - TEST
+
+
+
+```{r}
+# Run 7
+bam_files <- list.files(path="dataset/R_2013_12_04_17_52_40_user_SN1-71-DBAv6_L07", pattern="*.bam$", full.names = TRUE)
+```
+
+```{r}
+for (file in bam_files) {
+  # sample naming
+  sample_name <- sub(".R_.*", "", basename(file))
+  lane_number <- sub(".*DBAv6_","", basename(file))
+  lane_number <- sub(".bam", "", lane_number)
+  
+  sample_name = paste(lane_number, "_", sample_name, sep = "")
+  
+  print(sample_name)
+  
+  # targets file
+  targets <- get.targets(targetsfile = "dataset/DBAv6.bed", chrcol = 1, startcol = 2, endcol = 3, zerobased = FALSE, header = TRUE, sep = '\t')
+  
+  # reads file
+  reads <- get.reads(file, filetype="bam")
+  
+  # debug
+  chrom.barplot(reads, targets)
+}
+```
