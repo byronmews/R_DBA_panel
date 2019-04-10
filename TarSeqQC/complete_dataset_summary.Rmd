@@ -24,39 +24,75 @@ library(tibble)
 
 files = list.files(path = "tarseqqc_output", pattern = ".xlsx$", full.names = TRUE)
 
-# setup dataframes
-col_names = c("Min", "1st Qu.",	"Median", "Mean", "3rd Qu.", "Max.")
-summary_stats_gene_list = list()
-#colnames(summary_stats_gene_df) <- names
+# Exclude failed/control runs, based on complete dataframe distributions.
+excluded_runs <- c("L12_IonXpress_009", "L14_IonXpress_016", "L15_IonXpress_029", "L15_IonXpress_030", "L16_IonXpress_014", "L17_IonXpress_010", "L18_IonXpress_011", "L19_IonXpress_014", "L20_IonXpress_014")
 
-i = 1 # list position
+## Sheet 1
+# setup dataframes
+sample_names = list()
+summary_stats_gene = list()
+
+i = 1 # gene summary position
 for (file in files) {
-  
-  # Remove failed/control runs
-  excluded_runs <- list("L12_009", "L14_016", "L15_029", "L16_014", "L17_010")
-  
-  # Sheet 1
   excel = file
   print(excel)
-  sample_name = gsub(pattern = "*.*/|_results.xlsx", replacement = "", x = excel)
-
-  datalist = read_excel(path = excel, sheet = "Summary", range = "B2:G3", col_names = TRUE)
+  sample_name = gsub(pattern = "*.*/|_results.xlsx", replacement = "", x = excel) # eg. L20_IonXpress_012
+  print(sample_name)
+  sample_names[[i]] <- sample_name
+  
+  # using readxl lib
+  datalist = read_excel(path = excel, sheet = "Summary", range = "B2:G3", col_names = TRUE) # coverage col
   datalist = c(sample_name, datalist)
-  summary_stats_gene_list[[i]] <- datalist
-  
+  summary_stats_gene[[i]] <- datalist
   i = i+1
-  
-  # Sheet 2
 }
 
-# append list to df
-all_run_dataframe <- data.table::rbindlist(summary_stats_gene_list)
+# Output tables and plots
+# append lists to df as rows
+dataset_gene_summary <- data.table::rbindlist(summary_stats_gene)
 
-# tidy
-all_run_dataframe <- data.frame(column_to_rownames(all_run_dataframe, var = "V1"))
+# filter failed runs
+dataset_gene_summary_clean = subset(dataset_gene_summary, !(dataset_gene_summary$V1 %in% excluded_runs))
+
+# tidy and add row names
+dataset_gene_summary <- data.frame(column_to_rownames(dataset_gene_summary, var = "V1"))
 
 # plot
-p <- ggplot(all_run_dataframe, aes(x="Mean", y=all_run_dataframe$Mean, legend = 'N=172')) + geom_boxplot(width=0.25) + geom_point() + geom_jitter(width=0.05, alpha=0.5)
+p <- ggplot(dataset_gene_summary, aes(x="dataset_gene_summary", y=dataset_gene_summary$Mean)) + geom_boxplot() + geom_point() + geom_jitter(width=0.05, alpha=0.5)
+p
+```
+
+```{r}
+## Sheet 3
+# setup dataframes
+sample_names = list()
+amplicons = list()
+
+i = 1 #  amplicon summary position
+for (file in files) {
+  excel = file
+  print(excel)
+  sample_name = gsub(pattern = "*.*/|_results.xlsx", replacement = "", x = excel) # eg. L20_IonXpress_012
+  print(sample_name)
+  sample_names[[i]] <- sample_name
+  
+  # using readxl lib 
+  dataInfoCols = read_excel(path = excel, sheet = "amplicon", range = "A1:H521", col_names = TRUE) # universal info
+  datalist = read_excel(path = excel, sheet = "amplicon", range = "I1:I521", col_names = TRUE)
+  amplicons[[i]] <- datalist
+  i = i+1
+}
+
+# Output tables and plots
+# append lists to df as cols
+dataset_amplicons = do.call(cbind, amplicons)
+# tidy up, add col sample names and universal amplicon info
+colnames(dataset_amplicons) <- sample_names
+dataset_amplicons = cbind(dataInfoCols, dataset_amplicons)
+
+# plot
+p <- ggplot(dataset_amplicons, aes(x=dataset_amplicons$L07_IonXpress_001, y=dataset_amplicons$amplicon)) + geom_tile()
 p
 
 ```
+
