@@ -9,7 +9,7 @@ Try executing this chunk by clicking the *Run* button within the chunk or by pla
 
 Set work path, propigate through all chunk
 ```{r setup}
-knitr::opts_knit$set(root.dir = normalizePath("/Users/graham/bioinf/dba/amplicon_qc/lanes_17_20//"))
+knitr::opts_knit$set(root.dir = normalizePath("/Users/graham/bioinf/dba/amplicon_qc/lanes_17_20"))
 #setwd(dir = "/Users/graham/bioinf/dba/amplicon_qc/lanes_7_15")
 ```
 # Single library analysis
@@ -20,7 +20,7 @@ library("BiocParallel")
 
 ```{r}
 # Run 7 bam example - TODO: use a median example for in depth qc analysis
-bamFile1 <- list.files(path="dataset/R_2013_12_04_17_52_40_user_SN1-71-DBAv6_L07/", pattern="IonXpress_001.*.bam$", full.names = TRUE)
+bamFile1 <- list.files(path="dataset/R_2017_09_27_16_11_46_user_SN1-487-DBAv6_L19", pattern="IonXpress_001.*.bam$", full.names = TRUE)
 ```
 Check file
 ```{r}
@@ -47,8 +47,11 @@ myPanel1<-TargetExperiment(bedFile, bamFile1, fastaFile, feature="amplicon", att
 setFeature(myPanel1)<-"amplicon"
 setAttribute(myPanel1)<-"coverage"
 
+# definition of the interval extreme values
+attributeThres<-c(0,1,30,100,Inf)
+
 ```
-Multi panels
+Multi panels optional
 ```{r}
 panelList<-list(panel1=myPanel1, panel2=myPanel2)
 ```
