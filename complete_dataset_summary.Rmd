@@ -1,0 +1,215 @@
+---
+title: "R Notebook"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file). 
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
+```{r setup}
+knitr::opts_knit$set(root.dir = normalizePath("/Users/graham/bioinf/dba/amplicon_qc/R/TarSeqQC/"))
+#setwd(dir = "/Users/graham/bioinf/dba/amplicon_qc/lanes_7_15")
+```
+Converge all metrics.
+
+## Sheet 1
+```{r}
+library(tibble)
+
+if (!require("readxl")) {
+   install.packages("readxl", dependencies = TRUE)
+   library(readxl)
+}
+
+if (!require("gplots")) {
+   install.packages("gplots", dependencies = TRUE)
+   library(gplots)
+}
+
+if (!require("ggplot2")) {
+   install.packages("ggplot2", dependencies = TRUE)
+   library(ggplot2)
+}
+
+files = list.files(path = "tarseqqc_output", pattern = ".xlsx$", full.names = TRUE)
+
+# exclude failed/control runs, based on complete dataframe distributions.
+excluded_runs <- c("L12_IonXpress_009", "L14_IonXpress_016", "L15_IonXpress_029", "L15_IonXpress_030", "L16_IonXpress_014", "L17_IonXpress_010", "L18_IonXpress_011", "L19_IonXpress_014", "L20_IonXpress_014")
+
+## sheet 1
+# setup dataframes
+sample_names = list()
+summary_stats_gene = list()
+
+i = 1 # gene summary position
+for (file in files) {
+  excel = file
+  print(excel)
+  sample_name = gsub(pattern = "*.*/|_results.xlsx", replacement = "", x = excel) # eg. L20_IonXpress_012
+  print(sample_name)
+  sample_names[[i]] <- sample_name
+  
+  # using readxl lib
+  datalist = read_excel(path = excel, sheet = "Summary", range = "B2:G3", col_names = TRUE) # coverage col
+  datalist = c(sample_name, datalist)
+  summary_stats_gene[[i]] <- datalist
+  i = i+1
+}
+
+# output tables and plots
+# append lists to df as rows
+dataset_gene_summary <- data.table::rbindlist(summary_stats_gene)
+
+# filter failed runs
+dataset_gene_summary_clean = subset(dataset_gene_summary, !(dataset_gene_summary$V1 %in% excluded_runs))
+
+# tidy and add row names
+dataset_gene_summary_clean <- data.frame(column_to_rownames(dataset_gene_summary_clean, var = "V1"))
+
+# plot
+p <- ggplot(
+  dataset_gene_summary_clean, 
+  aes(x="", y=dataset_gene_summary_clean$Mean)) + 
+  geom_boxplot(fill="lightgreen") +
+  geom_point() +
+  geom_jitter(width=0.05, alpha=0.5) +
+  xlab("Samples") +
+  ylab("Mean gene coverage") +
+  ggtitle("Mean gene coverage across all 164 samples") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+# output dataset_gene_summary table
+write.xlsx(dataset_gene_summary, file = "dataset_gene_summary.xlsx")
+
+```
+## Sheet 3
+```{r}
+if (!require("pheatmap")) {
+   install.packages("pheatmap", dependencies = TRUE)
+   library(pheatmap)
+}
+
+install.packages(pheatmap)
+library(pheatmap)
+
+if (!require("RColorBrewer")) {
+   install.packages("RColorBrewer", dependencies = TRUE)
+   library(RColorBrewer)
+}
+
+## sheet 3
+# setup dataframes
+sample_names = list()
+amplicons = list()
+
+# exclude failed/control runs, based on complete dataframe distributions.
+excluded_runs <- c("L12_IonXpress_009", "L14_IonXpress_016", "L15_IonXpress_029", "L15_IonXpress_030", "L16_IonXpress_014", "L17_IonXpress_010", "L18_IonXpress_011", "L19_IonXpress_014", "L20_IonXpress_014")
+
+i = 1 #  amplicon summary position
+for (file in files) {
+  excel = file
+  print(excel)
+  sample_name = gsub(pattern = "*.*/|_results.xlsx", replacement = "", x = excel) # eg. L20_IonXpress_012
+  print(sample_name)
+  sample_names[[i]] <- sample_name
+  
+  # using readxl lib 
+  dataInfoCols = read_excel(path = excel, sheet = "amplicon", range = "A1:H521", col_names = TRUE) # universal info
+  datalist = read_excel(path = excel, sheet = "amplicon", range = "I1:I521", col_names = TRUE)
+  amplicons[[i]] <- datalist
+  i = i+1
+}
+
+# output tables and plots
+# append lists to df as cols
+dataset_amplicons = do.call(cbind, amplicons)
+
+# tidy up, add col sample names and universal amplicon info
+colnames(dataset_amplicons) <- sample_names
+dataset_amplicons = cbind(dataInfoCols, dataset_amplicons)
+
+# filter failed runs
+dataset_amplicons_clean = dataset_amplicons[ , !(names(dataset_amplicons) %in% excluded_runs)]
+
+## heatmap plots
+# plot mean amplicon coverage heatmap - subsample to every 1st library in run.
+# subset based using only forst library in run as representative.
+dataset_amplicons_clean_lib002 <- dataset_amplicons_clean[ , (endsWith(names(dataset_amplicons_clean), "002"))]
+dataset_amplicons_clean_lib002 = cbind(dataInfoCols, dataset_amplicons_clean_lib002)
+rnames <- dataset_amplicons_clean_lib002[,2] # assign labels from amplicon col
+mat_data <- data.matrix(dataset_amplicons_clean_lib002[,9:ncol(dataset_amplicons_clean_lib002)])  # transform cols 9- into a matrix (13/172 samples)
+rownames(mat_data) <- rnames
+
+# colour palette from black to white
+my_palette <- colorRampPalette(c("black", "grey", "white"))(n = 3)
+
+# (optional) defines the color breaks manually for a "skewed" color transition
+col_breaks = c(seq(0,1,length=1),   # black
+               seq(1,1, length=1),  # grey
+               seq(30,1,length=1), # white
+               seq(100,1,length=1)) # white
+
+# plot global
+p <- pheatmap(mat_data,
+         main = "Mean amplicon coverage, library sample 002 only",
+         cluster_cols= FALSE,
+         breaks=col_breaks,
+         color=my_palette,
+         fontsize_row=10,
+         show_rownames = FALSE)
+
+save_pheatmap_tiff <- function(x, filename, width=1200, height=1000, res = 300) {
+  tiff(filename, width = width, height = height, res = 300)
+  grid::grid.newpage()
+  grid::grid.draw(x$gtable)
+  dev.off()
+}
+
+save_pheatmap_tiff(p, "heatmap_global.tiff")
+
+# plot amplicons with low data coverage (<30X)
+mat_data <- data.matrix(dataset_amplicons_clean[,9:ncol(dataset_amplicons_clean)])  # transform cols 9- into a matrix (172 samples)
+rownames(mat_data) <- rnames
+
+x= 30 # value for threshold
+mat_data <- mat_data[mat_data[,ncol(mat_data)]<x,]
+
+# colour palette from black to grey
+my_palette <- colorRampPalette(c("black", "grey"))(n = 2)
+
+# (optional) defines the color breaks manually for a "skewed" color transition
+col_breaks = c(seq(0,1,length=1),   # black
+               seq(1,1, length=1),  # grey
+               seq(31,1,length=1)) # white
+
+annotations = data.frame(dataset_amplicons$chr, dataset_amplicons$gene)
+colnames(annotations) <- c("chr", "gene")
+rownames(annotations) <- dataset_amplicons$amplicon
+
+# plot global
+p <- pheatmap(mat_data,
+         main = "Mean amplicon coverage < 30",
+         cluster_cols= FALSE,
+         breaks=col_breaks,
+         color=my_palette,
+         fontsize_row=10,
+         show_rownames = TRUE,
+         show_colnames = FALSE,
+         annotation_row = annotations)
+
+
+# output dataset_gene_summary table
+write.xlsx(dataset_amplicons, file = "dataset_amplicons_coverage.xlsx")
+
+```
+

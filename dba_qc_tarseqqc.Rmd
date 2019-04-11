@@ -1,0 +1,190 @@
+---
+title: "DBA QC panel R Notebook - TarSeqQC package"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+Set work path, propigate through all chunk
+```{r setup}
+knitr::opts_knit$set(root.dir = normalizePath("/Users/graham/bioinf/dba/amplicon_qc/lanes_17_20"))
+#setwd(dir = "/Users/graham/bioinf/dba/amplicon_qc/lanes_7_15")
+```
+# Single library analysis
+```{r}
+library("TarSeqQC")
+library("BiocParallel")
+```
+
+```{r}
+# Run 7 bam example - TODO: use a median example for in depth qc analysis
+bamFile1 <- list.files(path="dataset/R_2017_09_27_16_11_46_user_SN1-487-DBAv6_L19", pattern="IonXpress_001.*.bam$", full.names = TRUE)
+```
+Check file
+```{r}
+print(bamFile1)
+```
+Specify bed file
+```{r}
+# bedFile
+bedFile = "dataset/DBAv6.formatted.bed"
+```
+Specify fasta file
+```{r}
+fastaFile = "../hg19.fa"
+```
+Creating a TargetExperiment object
+```{r}
+checkBedFasta(bedFile = bedFile, fastaFile = fastaFile)
+```
+
+```{r}
+BPPARAM<-bpparam()
+myPanel1<-TargetExperiment(bedFile, bamFile1, fastaFile, feature="amplicon", attribute="coverage", BPPARAM=BPPARAM)
+
+setFeature(myPanel1)<-"amplicon"
+setAttribute(myPanel1)<-"coverage"
+
+# definition of the interval extreme values
+attributeThres<-c(0,1,30,100,Inf)
+
+```
+Multi panels optional
+```{r}
+panelList<-list(panel1=myPanel1, panel2=myPanel2)
+```
+QC report output
+```{r}
+buildReport(myPanel1, attributeThres ,file="Results.xlsx")
+```
+
+staging
+```{r}
+plot(myPanel1)
+
+```
+# Pooled run library's 7-16
+```{r}
+# bedFile
+bedFile = "dataset/DBAv6.formatted.bed"
+
+# fasta file
+fastaFile = "../hg19.fa"
+
+# check formatting
+checkBedFasta(bedFile = bedFile, fastaFile = fastaFile)
+
+# iterate all run folders
+dirs <- list.dirs(path="dataset", recursive = FALSE)
+
+
+
+for (dir in dirs) {
+  print(dir)
+  bamFiles <- list.files(path=dir, pattern="*.bam$", full.names = TRUE)
+  BPPARAM<-bpparam()
+  
+  for (bamFile in bamFiles) {
+    #setwd("/Users/graham/bioinf/dba/amplicon_qc/lanes_7_15")
+    
+    # sample name and library number parsing
+    sample_name = sub(".R_.*", "", basename(bamFile))
+    file_split = strsplit(bamFile, "_")
+    lane_number = file_split[[c(1,length(file_split[[1]]))]]
+    lane_number = sub(".bam", "", lane_number)
+    sample_name = paste(lane_number, "_", sample_name, sep = "")
+    
+    print(sample_name)
+    
+    # creating a TargetExperiment object
+    DBAv6_panel <- TargetExperiment(bedFile, bamFile, fastaFile, feature="amplicon", attribute="coverage", BPPARAM=BPPARAM)
+    
+    setFeature(DBAv6_panel) <- "amplicon"
+    setAttribute(DBAv6_panel) <- "coverage"
+    
+    # definition of the interval extreme values
+    attributeThres<-c(0,1,30,100,Inf)
+    
+    # some basic stats
+    print(summary(DBAv6_panel))
+    
+    # table and plot on/off target hits, output table to file
+    write.csv(readFrequencies(DBAv6_panel), file = paste(sample_name, "_readFrequencies.csv", sep = ""))
+    plot_InOutFeatures <- plotInOutFeatures(readFrequencies(DBAv6_panel))
+    
+    # plot panel overview
+    plot_panelOverview <- plot(DBAv6_panel, attributeThres=attributeThres, chrLabels =TRUE)
+    
+    # get feature counts, output table to file
+    write.csv(getFeaturePanel(DBAv6_panel), file = paste(sample_name, "_getFeaturePanel.csv", sep = ""))
+    
+    # quality control report - output into analysis folder
+    dir.create("R/TarSeqQC/output/")
+    qc_results_filename = paste(sample_name, "_", "results.xlsx", sep = "")
+    buildReport(DBAv6_panel, attributeThres, file = qc_results_filename)
+  }
+}
+```
+# Pooled run library's 17-20 * change global path before running
+```{r}
+# bedFile
+bedFile = "dataset/DBAv6.formatted.bed"
+
+# fasta file
+fastaFile = "../hg19.fa"
+
+# check formatting
+checkBedFasta(bedFile = bedFile, fastaFile = fastaFile)
+
+# iterate all run folders
+dirs <- list.dirs(path="dataset", recursive = FALSE)
+
+for (dir in dirs) {
+  print(dir)
+  bamFiles <- list.files(path=dir, pattern="*.bam$", full.names = TRUE)
+  BPPARAM<-bpparam()
+  
+  for (bamFile in bamFiles) {
+    # sample name and library number parsing - irregular run naming
+    sample_name = sub(".*Ion", "", basename(bamFile))
+    sample_name = paste("Ion", sample_name, sep='')
+    file_split = strsplit(bamFile, "DBAv6_")
+    lane_number = file_split[[c(1,length(file_split[[1]]))]]
+    lane_number = sub("_.*", "", lane_number)
+    lane_number = sub(".IonXpress", "", lane_number) # continued random run naming, catch here
+    sample_name = paste(lane_number, "_", sample_name, sep = "")
+    
+    print(sample_name)
+    
+    # creating a TargetExperiment object
+    DBAv6_panel <- TargetExperiment(bedFile, bamFile, fastaFile, feature="amplicon", attribute="coverage", BPPARAM=BPPARAM)
+    
+    setFeature(DBAv6_panel) <- "amplicon"
+    setAttribute(DBAv6_panel) <- "coverage"
+    
+    # definition of the interval extreme values
+    attributeThres<-c(0,1,30,100,Inf)
+    
+    # some basic stats
+    print(summary(DBAv6_panel))
+    
+    # table and plot on/off target hits, output table to file
+    write.csv(readFrequencies(DBAv6_panel), file = paste(sample_name, "_readFrequencies.csv", sep = ""))
+    plot_InOutFeatures <- plotInOutFeatures(readFrequencies(DBAv6_panel))
+    
+    # plot panel overview
+    plot_panelOverview <- plot(DBAv6_panel, attributeThres=attributeThres, chrLabels =TRUE)
+    
+    # get feature counts, output table to file
+    write.csv(getFeaturePanel(DBAv6_panel), file = paste(sample_name, "_getFeaturePanel.csv", sep = ""))
+    
+    # quality control report - output into analysis folder
+    dir.create("R/TarSeqQC/output/")
+    qc_results_filename = paste(sample_name, "_", "results.xlsx", sep = "")
+    buildReport(DBAv6_panel, attributeThres, file = qc_results_filename)
+  }
+}
+```
+
