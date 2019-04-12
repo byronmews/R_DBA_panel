@@ -9,57 +9,97 @@ Try executing this chunk by clicking the *Run* button within the chunk or by pla
 
 #Set work path, propigate through all chunk
 ```{r setup}
-knitr::opts_knit$set(root.dir = normalizePath("/Users/graham/bioinf/dba/amplicon_qc/lanes_7_15/"))
+knitr::opts_knit$set(root.dir = normalizePath("/Users/graham/bioinf/dba/amplicon_qc/lanes_17_20"))
 #setwd(dir = "/Users/graham/bioinf/dba/amplicon_qc/lanes_7_15")
+```
+# Single library analysis
+```{r}
+library("TarSeqQC")
+library("BiocParallel")
 ```
 # Queue up the files paths
 ```{r}
-bam_files <- list.files(path="../../dataset/R_2013_12_04_17_52_40_user_SN1-71-DBAv6_L07/", pattern="*.bam", full.names = TRUE)
+# Run 7 bam example - TODO: use a median example for in depth qc analysis
+bamFile <- list.files(path="dataset/R_2017_09_27_16_11_46_user_SN1-487-DBAv6_L19", pattern="IonXpress_001.*.bam$", full.names = TRUE)
+
+fastaFile = "../hg19.fa"
+
+# bedFile
+bedFile = "dataset/DBAv6.formatted.bed"
 
 ```
-# Load essential files. BED and BAM.
+# Check essential files. BED and BAM.
 ```{r}
-targets <- get.targets(targetsfile = "dataset/DBAv6.bed", chrcol = 1, startcol = 2, endcol = 3, zerobased = TRUE, header = TRUE, sep = '\t')
-
-reads <- get.reads("dataset/R_2013_12_04_17_52_40_user_SN1-71-DBAv6_L07/IonXpress_002.R_2013_12_04_17_52_40_user_SN1-71-DBAv6_L07.bam", filetype="bam")
+checkBedFasta(bedFile = bedFile, fastaFile = fastaFile)
 ```
-# Specificity and Enrichment
+# Constructor call
 ```{r}
-chrom.barplot(reads, targets)
-fr <- fraction.reads.target(reads, targets)
+BPPARAM<-bpparam()
+myPanel<-TargetExperiment(bedFile, bamFile, fastaFile, feature="amplicon", attribute="coverage", BPPARAM=BPPARAM)
+
+setFeature(myPanel)<-"amplicon"
+setAttribute(myPanel)<-"coverage"
+
+# definition of the interval extreme values
+attributeThres<-c(0,1,30,100,Inf)
 
 ```
-# Coverage html report
+# Read freq per low coverage amplicon
 ```{r}
-TEQCreport(sampleName = "L7_IonXpress_002", targetsName = "DBAv6", referenceName = "hg19", destDir = "R/report2/", reads = reads, targets = targets, genome = "hg19")
+readFrequencies(myPanel)
+
+p <- plotInOutFeatures(readFrequencies(myPanel))
+
+p <-plotGeneAttrPerFeat(myPanel, geneID="RPS5") +
+  theme(axis.title=element_text(size=12), title= element_text(size=12), axis.text.x = element_text(size=10))
+  
+p
 ```
-# Cycle L7 - TEST
-
-
-
+# Plot actual bam coverage across gene regions
 ```{r}
-# Run 7
-bam_files <- list.files(path="dataset/R_2013_12_04_17_52_40_user_SN1-71-DBAv6_L07", pattern="*.bam$", full.names = TRUE)
+getRegion(myPanel, level="gene", ID="RPS19", collapse=FALSE)
+
+g<-plotFeature(myPanel, featureID="AMPL3707075462")
+g
+
+# plot RPS19
+getRegion(myPanel, level="gene", ID="RPS19", collapse=FALSE)
+
+g1 <- plotRegion(myPanel, region=c(42364769,42375473), seqname="chr19", SNPs=TRUE, minAAF = 0.05, minRD = 0, xlab="", title="RPS19 (chr19) coverage by 5 amplicons", size=1) +
+  annotate("text", x = 42365200, y = -3, label = "AMPL1501181774") +
+  annotate("text", x = 42365300, y = -7, label = "AMPL886902177") +
+  annotate("text", x = 42373100, y = -3, label = "AMPL5322931146") +
+  annotate("text", x = 42373700, y = -7, label = "AMPL5322938416") +
+  annotate("text", x = 42375100, y = -3, label = "AMPL3707075462") +
+  xlab("Chromosome position")
+
+g1# focus on RPS19 failing AMPL3707075462 amplicon
+g1.1 <- plotRegion(myPanel, region=c(42375349,42375473), seqname="chr19", SNPs=TRUE, minAAF = 0.05, minRD = 0, xlab="", title="RPS19 (chr19) coverage by amplicon AMPL3707075462", size=1) +
+  xlab("Chromosome position")
+
+# plot RPS5
+getRegion(myPanel, level="gene", ID="RPS5", collapse=FALSE)
+
+g2 <- plotRegion(myPanel, region=c(58899450,58906199), seqname="chr19", SNPs=TRUE, minAAF = 0.05, minRD = 0, xlab="", title="RPS5 (chr19) coverage by 6 amplicons", size=1) +
+  annotate("text", x = 58899700, y = -3, label = "AMPL5323842280") +
+  annotate("text", x = 58904300, y = -3, label = "AMPL882331318") +
+  annotate("text", x = 58904400, y = -7, label = "AMPL882358879") +
+  annotate("text", x = 58904800, y = -15, label = "AMPL4849070270") +
+  annotate("text", x = 58905800, y = -3, label = "AMPL5323581504") +
+  annotate("text", x = 58905900, y = -7, label = "AMPL5323582863") +
+  xlab("Chromosome position")
+
+# plot RPL36A
+getRegion(myPanel, level="gene", ID="RPL36A", collapse=FALSE)
+
+g3 <- plotRegion(myPanel, region=c(100645882,100650832), seqname="chrX", SNPs=TRUE, minAAF = 0.05, minRD = 0, xlab="", title="RPL36A (chrX) coverage by 6 amplicons", size=1) +
+  annotate("text", x = 100646050, y = -3, label = "AMPL883962734") +
+  annotate("text", x = 100646500, y = -5, label = "AMPL5323738783") +
+  annotate("text", x = 100646800, y = -7, label = "AMPL5323069303") +
+  annotate("text", x = 100650200, y = -3, label = "AMPL882373081") +
+  annotate("text", x = 100650550, y = -5, label = "AMPL882376993") +
+  annotate("text", x = 100650600, y = -7, label = "AMPL5323077738") +
+  xlab("Chromosome position")
+
 ```
 
-```{r}
-for (file in bam_files) {
-  # sample naming
-  sample_name <- sub(".R_.*", "", basename(file))
-  lane_number <- sub(".*DBAv6_","", basename(file))
-  lane_number <- sub(".bam", "", lane_number)
-  
-  sample_name = paste(lane_number, "_", sample_name, sep = "")
-  
-  print(sample_name)
-  
-  # targets file
-  targets <- get.targets(targetsfile = "dataset/DBAv6.bed", chrcol = 1, startcol = 2, endcol = 3, zerobased = FALSE, header = TRUE, sep = '\t')
-  
-  # reads file
-  reads <- get.reads(file, filetype="bam")
-  
-  # debug
-  chrom.barplot(reads, targets)
-}
-```
